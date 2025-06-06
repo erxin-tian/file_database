@@ -344,7 +344,7 @@ class DatabaseHelper
      * 查询所有数据
      * 
      * @param string $table 表名
-     * @return array 所有文档数据 [id => document, ...]
+     * @return array 所有文档数据的索引数组 [document, document, ...]
      * @throws InvalidArgumentException 当参数无效时抛出异常
      * @throws RuntimeException 当操作失败时抛出异常
      */
@@ -360,8 +360,11 @@ class DatabaseHelper
                 return [];
             }
             
-            // 读取现有数据
-            return $this->readTableData($tableFile);
+            // 读取现有数据（关联数组格式）
+            $existingData = $this->readTableData($tableFile);
+            
+            // 转换为索引数组格式
+            return array_values($existingData);
         } catch (Exception $e) {
             throw new RuntimeException("Failed to get all documents: " . $e->getMessage(), 0, $e);
         }
@@ -640,8 +643,7 @@ class DatabaseHelper
             
             // 检查是否包含_id字段
             if (isset($document[self::ID_FIELD_KEY])) {
-                // $data[$document[self::ID_FIELD_KEY]] = $document;
-                $data[] = $document;
+                $data[$document[self::ID_FIELD_KEY]] = $document;
             }
         }
         

@@ -1,1 +1,2 @@
-{"message":"Hello from path test","timestamp":"2025-06-06 18:51:33","_id":"msg001"}
+{"name":"张三","email":"zhangsan@example.com","role":"user","_id":"user001"}
+{"name":"王五","email":"wangwu@example.com","_id":"user003"}
