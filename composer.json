@@ -1,0 +1,46 @@
+{
+    "name": "pier/file_database",
+    "description": "一个高效、简洁的PHP文件数据库系统，提供基于文件存储的NoSQL数据库功能，支持完整的CRUD操作",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["database", "file-database", "nosql", "key-value", "php", "storage", "crud"],
+    "homepage": "https://github.com/pier/file_database",
+    "support": {
+        "issues": "https://github.com/pier/file_database/issues",
+        "source": "https://github.com/pier/file_database"
+    },
+    "autoload": {
+        "psr-4": {
+            "pier\\fileDatabase\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "pier\\fileDatabase\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "pier",
+            "role": "Developer"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test-coverage": "phpunit --coverage-html coverage",
+        "test-filter": "phpunit --filter",
+        "demo": "php src/Test.php",
+        "demo-crud": "php src/TestCRUD.php"
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    }
+}
