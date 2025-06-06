@@ -73,7 +73,7 @@ class DatabaseHelper
 
     /**
      * 智能检测数据存储路径
-     * 
+     *
      * @return string 数据存储的基础路径
      */
     private function detectDataPath(): string
@@ -640,7 +640,8 @@ class DatabaseHelper
             
             // 检查是否包含_id字段
             if (isset($document[self::ID_FIELD_KEY])) {
-                $data[$document[self::ID_FIELD_KEY]] = $document;
+                // $data[$document[self::ID_FIELD_KEY]] = $document;
+                $data[] = $document;
             }
         }
         

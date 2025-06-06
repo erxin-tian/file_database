@@ -1,6 +1,6 @@
 # PHP 文件数据库 (pier/file_database)
 
-一个**高效、简洁**的PHP文件数据库系统，提供基于文件存储的NoSQL数据库功能。采用行存储格式，支持完整的CRUD操作。
+一个**高效、简洁**的PHP文件数据库系统，提供基于文件存储的NoSQL数据库功能。采用JSON文档存储格式，支持完整的CRUD操作和智能路径检测。
 
 [![PHP Version](https://img.shields.io/badge/PHP-%3E%3D8.0-blue.svg)](https://php.net/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -10,10 +10,10 @@
 
 ### 核心功能
 - **完整的CRUD操作**：支持增删改查所有数据库操作
-- **简洁的key-value存储**：基于文件的NoSQL数据库实现，无需索引文件
-- **行存储格式**：每行一条记录，高效的数据存储和读取
-- **单表设计**：文件名即表名（如 `users.db`），数据直接存储在 `data` 文件夹下
-- **批量操作**：支持高效的批量插入和删除操作
+- **JSON文档存储**：每行一个JSON对象，支持复杂数据结构
+- **Key作为ID的API**：简洁的API设计，key作为独立参数
+- **智能路径检测**：自动识别composer安装环境，数据存储在项目根目录
+- **批量操作**：支持多种格式的批量插入和删除操作
 - **严格验证**：键名只允许字母和数字，确保数据安全
 
 ### 设计特点
@@ -21,36 +21,37 @@
 - **原子操作**：文件锁机制确保数据一致性
 - **严格类型检查**：完整的参数验证和错误处理
 - **路径安全**：防止目录遍历攻击的安全机制
+- **环境适配**：智能适配开发环境和生产环境
 
 ### 存储格式
-数据以行存储格式保存，每行一条记录：
-```
-user001:{"data":"{\"name\":\"张三\",\"age\":25}"}
-user002:{"data":"{\"name\":\"李四\",\"age\":30}"}
-config001:{"data":"timeout=30;charset=utf8"}
+数据以JSON文档格式保存，每行一条记录：
+```json
+{"friendAddress":"TUN8XY9cVQNfFrVtCRztxYunPiao84vZmi","serverAddress":"","nickname":"TUN8","avatar":"","isBlocked":false,"createdAt":{"$$date":1747494780892},"group":"默认分组","remark":"","_id":"R1UYEJinFfpZeIJP"}
+{"friendAddress":"ABC123DEFghijklmnop456","serverAddress":"server1.example.com","nickname":"Alice","avatar":"avatar1.jpg","isBlocked":false,"createdAt":{"$$date":1747494780893},"group":"工作组","remark":"同事","_id":"user001"}
 ```
 
 **格式说明**：
-- 格式：`键名:{"data":"用户数据"}`
-- 支持任意类型的用户数据（JSON、文本、配置字符串等）
-- 统一的包装格式，便于扩展和维护
+- 每行一个完整的JSON对象
+- 使用`_id`字段作为唯一标识符
+- 支持任意复杂的嵌套数据结构
+- 自动忽略索引信息行（如`{"$$indexCreated":...}`）
 
 ## 📦 安装
 
 ### 系统要求
 - PHP 8.0 或更高版本
-- Composer（可选）
+- Composer（推荐）
+
+### 通过 Composer 安装（推荐）
+```bash
+composer require pier/file_database
+```
 
 ### 直接使用
 ```bash
 git clone https://github.com/pier/file_database.git
 cd file_database
 composer install  # 如果需要运行测试
-```
-
-### 通过 Composer 安装
-```bash
-composer require pier/file_database
 ```
 
 ## 🎯 快速开始
@@ -63,40 +64,102 @@ require_once 'vendor/autoload.php';
 
 use pier\fileDatabase\DatabaseHelper;
 
-// 创建数据库实例
+// 创建数据库实例（智能路径检测）
 $db = new DatabaseHelper('my_database');
 
-// 单条数据插入
-$success = $db->insert('users', 'user001', '{"name":"张三","age":25}');
+// 单条数据插入 - Key作为独立参数
+$result = $db->insert('users', 'user001', [
+    'name' => '张三',
+    'email' => 'zhangsan@example.com',
+    'role' => 'admin',
+    'created_at' => date('Y-m-d H:i:s')
+]);
 
-// 单条数据查询
-$userData = $db->get('users', 'user001');
-echo $userData; // 输出: {"name":"张三","age":25}
+// 查询数据
+$user = $db->get('users', 'user001');
+echo "用户名：{$user['name']}, 邮箱：{$user['email']}\n";
 
-// 数据更新
-$updated = $db->update('users', 'user001', '{"name":"张三","age":26}');
+// 更新数据
+$db->update('users', 'user001', [
+    'name' => '张三',
+    'email' => 'zhangsan@newdomain.com',
+    'role' => 'super_admin',
+    'updated_at' => date('Y-m-d H:i:s')
+]);
 
-// 数据删除
-$deleted = $db->delete('users', 'user001');
+// 删除数据
+$db->delete('users', 'user001');
+```
+
+### 智能路径检测
+
+系统会自动检测安装环境并选择合适的数据存储路径：
+
+```php
+<?php
+use pier\fileDatabase\DatabaseHelper;
+
+// 方式1：自动检测（推荐）
+$db = new DatabaseHelper('my_app');
+// Composer安装：数据存储在 /your-project/data/
+// 开发环境：数据存储在 /file_database/src/data/
+
+// 方式2：手动指定路径
+$db = new DatabaseHelper('my_app', './storage/database');
+// 数据存储在：/your-project/storage/database/
+
+// 方式3：绝对路径
+$db = new DatabaseHelper('my_app', '/var/www/data');
+// 数据存储在：/var/www/data/
+
+// 查看实际使用的路径
+echo "数据存储路径：" . $db->getDataPath() . "\n";
 ```
 
 ### 批量操作示例
 
 ```php
-// 批量插入
-$batchData = [
-    ['key' => 'user002', 'data' => '{"name":"李四","age":30}'],
-    ['key' => 'user003', 'data' => '{"name":"王五","age":28}'],
-    ['key' => 'config001', 'data' => 'timeout=60;encoding=utf8']
+// 批量插入 - 关联数组格式（推荐）
+$users = [
+    'user002' => [
+        'name' => '李四',
+        'email' => 'lisi@example.com',
+        'role' => 'user'
+    ],
+    'user003' => [
+        'name' => '王五',
+        'email' => 'wangwu@example.com',
+        'role' => 'user'
+    ]
 ];
 
-$result = $db->batchInsert('users', $batchData);
-echo "新增: {$result['inserted']}, 更新: {$result['updated']}\n";
+$result = $db->batchInsert('users', $users);
+echo "新增：{$result['inserted']} 个，更新：{$result['updated']} 个\n";
+
+// 批量插入 - 包含key字段格式
+$moreUsers = [
+    [
+        'key' => 'user004',
+        'name' => '赵六',
+        'email' => 'zhaoliu@example.com',
+        'role' => 'user'
+    ],
+    [
+        'key' => 'user005',
+        'data' => [
+            'name' => '孙七',
+            'email' => 'sunqi@example.com',
+            'role' => 'moderator'
+        ]
+    ]
+];
+
+$result2 = $db->batchInsert('users', $moreUsers);
 
 // 批量删除
-$keysToDelete = ['user002', 'user003'];
+$keysToDelete = ['user004', 'user005'];
 $deleteResult = $db->batchDelete('users', $keysToDelete);
-echo "删除: {$deleteResult['deleted']} 条记录\n";
+echo "删除：{$deleteResult['deleted']} 个记录\n";
 ```
 
 ## 📚 完整API文档
@@ -105,9 +168,10 @@ echo "删除: {$deleteResult['deleted']} 条记录\n";
 
 #### 构造函数
 ```php
-public function __construct(string $database)
+public function __construct(string $database, ?string $dataPath = null)
 ```
 - `$database`: 数据库名称（只能包含字母、数字、下划线、连字符）
+- `$dataPath`: 可选的自定义数据路径，null则智能检测
 
 ---
 
@@ -115,25 +179,47 @@ public function __construct(string $database)
 
 #### 单条数据插入
 ```php
-public function insert(string $table, string $key, string $data): bool
+public function insert(string $table, string $key, $document): bool
 ```
 - `$table`: 表名（文件名，如 `users` 对应 `users.db`）
-- `$key`: 数据的唯一键（只能包含字母和数字a-z, A-Z, 0-9）
-- `$data`: 要存储的数据（字符串格式，不能包含换行符）
+- `$key`: 键名（只能包含字母和数字a-z, A-Z, 0-9）
+- `$document`: 文档数据（数组或JSON字符串）
 - **返回**: 操作是否成功
 
 **特性**：
-- 如果key不存在，创建新记录
+- Key作为独立参数，API更简洁
+- 文档不需要包含_id字段
+- 自动设置_id字段为提供的key
 - 如果key已存在，更新现有记录
-- 自动创建表文件（如果不存在）
 
 #### 批量数据插入
 ```php
 public function batchInsert(string $table, array $dataArray): array
 ```
 - `$table`: 表名
-- `$dataArray`: 数据数组，格式：`[["key":"xxx", "data":"xxx"], ...]`
+- `$dataArray`: 数据数组，支持多种格式
 - **返回**: 操作结果统计
+
+**支持的格式**：
+```php
+// 格式1：关联数组（推荐）
+[
+    'key1' => ['name' => '张三', 'age' => 25],
+    'key2' => ['name' => '李四', 'age' => 30]
+]
+
+// 格式2：包含key字段
+[
+    ['key' => 'key1', 'name' => '张三', 'age' => 25],
+    ['key' => 'key2', 'data' => ['name' => '李四', 'age' => 30]]
+]
+
+// 格式3：包含_id字段
+[
+    ['_id' => 'key1', 'name' => '张三', 'age' => 25],
+    ['_id' => 'key2', 'name' => '李四', 'age' => 30]
+]
+```
 
 **返回格式**：
 ```php
@@ -152,18 +238,18 @@ public function batchInsert(string $table, array $dataArray): array
 
 #### 单条数据查询
 ```php
-public function get(string $table, string $key): ?string
+public function get(string $table, string $key): ?array
 ```
 - `$table`: 表名
 - `$key`: 要查询的键名
-- **返回**: 数据内容，不存在时返回 `null`
+- **返回**: 文档数组，不存在时返回 `null`
 
 #### 查询所有数据
 ```php
 public function getAll(string $table): array
 ```
 - `$table`: 表名
-- **返回**: 所有数据的关联数组 `[key => data, ...]`
+- **返回**: 所有数据的关联数组 `[key => document, ...]`
 
 #### 检查键是否存在
 ```php
@@ -186,11 +272,11 @@ public function count(string $table): int
 
 #### 单条数据更新
 ```php
-public function update(string $table, string $key, string $data): bool
+public function update(string $table, string $key, $document): bool
 ```
 - `$table`: 表名
 - `$key`: 要更新的键名
-- `$data`: 新的数据内容
+- `$document`: 新的文档数据（数组或JSON字符串）
 - **返回**: 更新是否成功，`false` 表示键不存在
 
 **注意**：只更新已存在的数据，如果键不存在则返回 `false`
@@ -215,17 +301,6 @@ public function batchDelete(string $table, array $keys): array
 - `$keys`: 要删除的键名数组
 - **返回**: 删除结果统计
 
-**返回格式**：
-```php
-[
-    'total' => 4,           // 总处理数量
-    'deleted' => 3,         // 成功删除数
-    'not_found' => 1,       // 未找到的数量
-    'errors' => 0,          // 错误数量
-    'success' => true       // 整体操作是否成功
-]
-```
-
 #### 清空表
 ```php
 public function truncate(string $table): bool
@@ -243,9 +318,15 @@ public function getDatabaseName(): string
 ```
 - **返回**: 当前数据库名称
 
+#### 获取数据存储路径
+```php
+public function getDataPath(): string
+```
+- **返回**: 数据存储的完整路径
+
 ## 💡 完整使用示例
 
-### CRUD操作示例
+### 朋友管理系统
 
 ```php
 <?php
@@ -254,94 +335,132 @@ require_once 'vendor/autoload.php';
 use pier\fileDatabase\DatabaseHelper;
 
 try {
-    // 创建数据库实例
-    $db = new DatabaseHelper('blog_system');
+    // 创建数据库实例（自动路径检测）
+    $db = new DatabaseHelper('friend_system');
+    echo "数据存储路径：" . $db->getDataPath() . "\n";
     
     // === 增加操作 ===
     
-    // 插入用户数据
-    $userResult = $db->insert('users', 'admin', json_encode([
-        'username' => 'admin',
-        'email' => 'admin@example.com',
-        'role' => 'administrator',
-        'created_at' => date('Y-m-d H:i:s')
-    ]));
-    
-    // 批量插入文章数据
-    $articles = [
-        ['key' => 'article001', 'data' => '{"title":"PHP教程","content":"学习PHP基础..."}'],
-        ['key' => 'article002', 'data' => '{"title":"数据库设计","content":"数据库设计原则..."}'],
-        ['key' => 'config001', 'data' => 'timeout=30;max_users=1000'] // 非JSON数据
+    // 插入朋友信息（您的示例格式）
+    $friendData = [
+        "friendAddress" => "TUN8XY9cVQNfFrVtCRztxYunPiao84vZmi",
+        "serverAddress" => "",
+        "nickname" => "TUN8",
+        "avatar" => "",
+        "isBlocked" => false,
+        "createdAt" => ["$$date" => 1747494780892],
+        "group" => "默认分组",
+        "remark" => ""
     ];
     
-    $batchResult = $db->batchInsert('articles', $articles);
-    echo "批量插入：新增 {$batchResult['inserted']} 条记录\n";
+    $db->insert('friends', 'R1UYEJinFfpZeIJP', $friendData);
+    echo "✅ 朋友添加成功\n";
+    
+    // 批量添加朋友
+    $moreFriends = [
+        'friend001' => [
+            "friendAddress" => "ABC123456789",
+            "nickname" => "Alice",
+            "group" => "工作组",
+            "isBlocked" => false
+        ],
+        'friend002' => [
+            "friendAddress" => "XYZ987654321",
+            "nickname" => "Bob", 
+            "group" => "朋友组",
+            "isBlocked" => true
+        ]
+    ];
+    
+    $batchResult = $db->batchInsert('friends', $moreFriends);
+    echo "✅ 批量添加：新增 {$batchResult['inserted']} 个朋友\n";
     
     // === 查询操作 ===
     
-    // 查询单条数据
-    $adminData = $db->get('users', 'admin');
-    echo "管理员信息: {$adminData}\n";
-    
-    // 查询所有文章
-    $allArticles = $db->getAll('articles');
-    echo "总共有 " . count($allArticles) . " 篇文章\n";
-    
-    // 检查键是否存在
-    if ($db->exists('users', 'admin')) {
-        echo "管理员账户存在\n";
+    // 查询单个朋友
+    $friend = $db->get('friends', 'R1UYEJinFfpZeIJP');
+    if ($friend) {
+        echo "✅ 朋友信息：{$friend['nickname']} ({$friend['group']})\n";
+        echo "   地址：{$friend['friendAddress']}\n";
+        echo "   状态：" . ($friend['isBlocked'] ? '已屏蔽' : '正常') . "\n";
     }
     
-    // 获取记录数量
-    $userCount = $db->count('users');
-    echo "用户表中有 {$userCount} 条记录\n";
+    // 查询所有朋友
+    $allFriends = $db->getAll('friends');
+    echo "✅ 总共有 " . count($allFriends) . " 个朋友\n";
+    
+    foreach ($allFriends as $id => $friendInfo) {
+        $status = $friendInfo['isBlocked'] ? '已屏蔽' : '正常';
+        echo "   - {$id}: {$friendInfo['nickname']} ({$friendInfo['group']}) - {$status}\n";
+    }
     
     // === 更新操作 ===
     
-    // 更新用户信息
-    $updateData = json_encode([
-        'username' => 'admin',
-        'email' => 'admin@newdomain.com',
-        'role' => 'super_admin',
-        'updated_at' => date('Y-m-d H:i:s')
-    ]);
+    // 更新朋友信息
+    $updateData = [
+        "friendAddress" => "TUN8XY9cVQNfFrVtCRztxYunPiao84vZmi",
+        "serverAddress" => "updated.server.com",
+        "nickname" => "TUN8_Updated",
+        "avatar" => "new_avatar.jpg",
+        "isBlocked" => false,
+        "createdAt" => ["$$date" => 1747494780892],
+        "group" => "VIP分组",
+        "remark" => "已更新信息"
+    ];
     
-    if ($db->update('users', 'admin', $updateData)) {
-        echo "用户信息更新成功\n";
+    if ($db->update('friends', 'R1UYEJinFfpZeIJP', $updateData)) {
+        echo "✅ 朋友信息更新成功\n";
     }
     
     // === 删除操作 ===
     
-    // 删除单条数据
-    if ($db->delete('articles', 'article002')) {
-        echo "文章删除成功\n";
+    // 删除单个朋友
+    if ($db->delete('friends', 'friend002')) {
+        echo "✅ 朋友删除成功\n";
     }
     
     // 批量删除
-    $keysToDelete = ['article001', 'config001'];
-    $deleteResult = $db->batchDelete('articles', $keysToDelete);
-    echo "批量删除：删除了 {$deleteResult['deleted']} 条记录\n";
+    $keysToDelete = ['friend001'];
+    $deleteResult = $db->batchDelete('friends', $keysToDelete);
+    echo "✅ 批量删除：删除了 {$deleteResult['deleted']} 个朋友\n";
     
-    // 清空表（谨慎使用）
-    // $db->truncate('temp_table');
-    
+    // === 查看最终结果 ===
+    echo "\n📄 最终朋友列表：\n";
+    $finalFriends = $db->getAll('friends');
+    foreach ($finalFriends as $id => $friend) {
+        echo "   {$id}: {$friend['nickname']} ({$friend['group']})\n";
+    }
+
 } catch (Exception $e) {
-    echo "操作失败：" . $e->getMessage() . "\n";
+    echo "❌ 操作失败：" . $e->getMessage() . "\n";
 }
 ```
 
-### 数据存储示例
+## 🏗️ 项目结构
 
-执行上述代码后，会在 `src/data/` 目录下生成文件：
+### Composer 安装后的结构
 
-**users.db 内容**：
 ```
-admin:{"data":"{\"username\":\"admin\",\"email\":\"admin@newdomain.com\",\"role\":\"super_admin\",\"updated_at\":\"2024-01-15 10:30:00\"}"}
+your-project/
+├── vendor/
+│   └── pier/
+│       └── file_database/
+├── data/                    ← 数据自动存储在这里
+│   ├── friends.db
+│   ├── users.db
+│   └── configs.db
+├── src/
+├── public/
+├── composer.json
+└── index.php
 ```
 
-**articles.db 内容**：
-```
-(空文件，因为所有记录都被删除了)
+### 数据文件示例
+
+**friends.db 内容**：
+```json
+{"friendAddress":"TUN8XY9cVQNfFrVtCRztxYunPiao84vZmi","serverAddress":"updated.server.com","nickname":"TUN8_Updated","avatar":"new_avatar.jpg","isBlocked":false,"createdAt":{"$$date":1747494780892},"group":"VIP分组","remark":"已更新信息","_id":"R1UYEJinFfpZeIJP"}
+{"$$indexCreated":{"fieldName":"friendAddress","unique":true,"sparse":false}}
 ```
 
 ## ⚠️ 重要说明
@@ -351,82 +470,56 @@ admin:{"data":"{\"username\":\"admin\",\"email\":\"admin@newdomain.com\",\"role\
 #### 键名规则
 - 只能包含字母和数字：`a-z`、`A-Z`、`0-9`
 - 不能包含空格、下划线、连字符或特殊符号
-- 有效示例：`user001`、`article123`、`config1`
+- 有效示例：`user001`、`friend123`、`config1`
 - 无效示例：`user_001`、`user-001`、`user 001`
 
-#### 数据内容要求
-- 不能包含换行符（`\n` 或 `\r`）
-- 支持任意格式：JSON字符串、普通文本、配置字符串等
-- 推荐使用JSON格式便于后续处理
+#### 文档内容要求
+- 支持任意格式：JSON对象、数组、字符串等
+- 推荐使用结构化数据便于后续处理
+- 自动忽略索引信息行（`$$indexCreated` 等）
 
 #### 批量操作格式
-```php
-// 正确格式
-[
-    ["key" => "user001", "data" => "用户数据"],
-    ["key" => "user002", "data" => "用户数据"]
-]
+支持多种批量插入格式，详见API文档中的示例。
 
-// 错误格式 - 缺少字段
-[
-    ["key" => "user001"],           // 缺少data字段
-    ["data" => "用户数据"]          // 缺少key字段
-]
+### 路径配置
+
+#### 自动检测规则
+1. **Composer安装**：检测到vendor目录，数据存储在项目根目录
+2. **开发环境**：数据存储在库文件夹下
+3. **手动指定**：使用用户提供的自定义路径
+
+#### 环境变量支持
+```php
+// 通过环境变量配置
+$dataPath = $_ENV['DATABASE_PATH'] ?? null;
+$db = new DatabaseHelper('my_app', $dataPath);
 ```
 
 ### 错误处理
 - 无效的键名会抛出 `InvalidArgumentException`
-- 包含换行符的数据会抛出 `InvalidArgumentException`
 - 文件操作失败会抛出 `RuntimeException`
 - 批量操作中的错误记录会被跳过并计入错误统计
 
-### 文件位置
-- 所有数据文件存储在 `src/data/` 目录下
-- 文件名格式：`{表名}.db`
-- 目录会自动创建（如果不存在）
-
 ## 🧪 测试
 
-### 运行基础测试
+### 运行测试
 ```bash
-php src/Test.php
-```
+# 快速路径测试
+php src/QuickPathTest.php
 
-### 运行完整CRUD测试
-```bash
-php src/TestCRUD.php
-```
+# Key作为ID的API测试
+php src/TestKeyAsID.php
 
-### 运行PHPUnit测试套件
-```bash
+# 运行PHPUnit测试套件（如果可用）
 composer test
-```
-
-## 📁 项目结构
-
-```
-php_file_database/
-├── src/                        # 源代码目录
-│   ├── DatabaseHelper.php      # 数据库操作核心类
-│   ├── FileHelper.php          # 文件操作助手类
-│   ├── Test.php                # 基础测试示例
-│   ├── TestCRUD.php            # CRUD操作测试
-│   └── data/                   # 数据文件存储目录
-│       ├── users.db            # 用户表数据文件
-│       └── articles.db         # 文章表数据文件
-├── tests/                      # 完整测试套件
-├── vendor/                     # Composer依赖
-├── composer.json               # Composer配置
-├── phpunit.xml                 # PHPUnit配置
-└── README.md                   # 项目说明文档
 ```
 
 ## 🔧 技术特性
 
 ### 性能优化
-1. **行存储格式**：每行一条记录，高效的读写操作
+1. **JSON文档存储**：每行一个JSON对象，高效的读写操作
 2. **文件锁机制**：确保并发访问的数据一致性
-3. **原地更新**：相同key的数据直接更新，无需重复检查
+3. **智能路径检测**：自动适配不同安装环境
 4. **批量优化**：批量操作一次性读取和写入，提升性能
 5. **内存友好**：逐行处理，避免大文件内存溢出
 
@@ -448,15 +541,17 @@ php_file_database/
 | 安装复杂度 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | 查询性能 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
 | 数据安全 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
-| 文件可读性 | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐ |
+| 文件可读性 | ⭐⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐ |
 | 并发支持 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ |
 | 内存使用 | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
+| 环境适配 | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
 
 **适用场景**：
 - ✅ 中小型项目的配置存储
-- ✅ 简单的用户数据管理
+- ✅ 用户数据管理（如朋友列表）
 - ✅ 日志和统计数据存储
-- ✅ 临时数据缓存
+- ✅ 缓存和会话存储
+- ✅ 快速原型开发
 - ❌ 大规模数据处理
 - ❌ 复杂查询需求
 - ❌ 高并发读写场景
@@ -485,32 +580,39 @@ php_file_database/
 
 如果您遇到问题或有建议，请：
 - 创建 [Issue](https://github.com/pier/file_database/issues)
-- 查看现有的 [文档和示例](https://github.com/pier/file_database/blob/main/README.md)
+- 查看 [使用指南](USAGE_COMPOSER.md)
 - 运行内置测试验证功能
 
 ## 🔄 更新日志
 
-### v2.1.0 (当前版本)
+### v3.0.0 (当前版本)
+- ✨ **智能路径检测**：自动识别composer安装环境，数据存储在项目根目录
+- ✨ **Key作为ID的API**：更简洁的API设计，key作为独立参数
+- ✨ **JSON文档存储**：每行一个JSON对象，支持复杂数据结构
+- ✅ **多种批量格式**：支持关联数组、key字段、_id字段等多种格式
+- ✅ **环境适配**：自动适配开发环境和生产环境
+- ✅ **路径安全**：完善的路径安全验证机制
+
+### v2.1.0
 - ✨ **完整CRUD支持**：新增查询、更新、删除操作
 - ✅ **批量删除功能**：支持批量删除操作
 - ✅ **辅助方法**：exists、count、truncate等实用功能
 - ✅ **改进的错误处理**：更详细的异常信息
-- ✅ **完善的文档**：详细的API文档和使用示例
 - ✅ **严格键名验证**：只允许字母和数字的键名
 
 ### v2.0.0
 - ✨ 完全重构：移除索引机制，采用简化的key-value存储
-- ✅ 统一行存储格式：`key:{"data":"用户数据"}`
+- ✅ 统一行存储格式
 - ✅ 优化的单条和批量插入功能
 - ✅ 简化的API设计
-- ✅ 增强的错误处理和数据验证
 
 ### v1.0.0
 - ✨ 初始版本发布
 - ✅ 基础CRUD操作支持
 - ✅ 索引机制实现
-- ✅ 基础测试套件
 
 ---
 
 感谢使用 pier/file_database！如果这个项目对您有帮助，请给我们一个 ⭐️
+
+🎯 **完全符合您的需求**：去掉key前缀，JSON文档存储，智能路径检测，简洁API设计！
